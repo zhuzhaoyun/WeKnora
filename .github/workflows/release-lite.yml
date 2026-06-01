@@ -201,12 +201,15 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Pre-download Go modules (Windows)
+      - name: Upgrade neo4j driver (workaround for Go 1.26 Windows bug)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          go mod download
-          # Clean build cache to avoid stale type info from different build tags
+          # Go 1.26.3 on Windows has a compiler bug with neo4j-go-driver v6.0.0:
+          # "internal error: package without types was imported"
+          # Upgrade to v6.1.0 which may have changes that avoid the bug.
+          go get github.com/neo4j/neo4j-go-driver/v6@v6.1.0
+          go mod tidy
           go clean -cache
 
       - name: Build desktop app
