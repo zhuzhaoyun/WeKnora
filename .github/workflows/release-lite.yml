@@ -201,15 +201,13 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Pre-compile Go packages (Windows)
+      - name: Pre-download Go modules (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
-          export CGO_CFLAGS="-Wno-deprecated-declarations"
-          cd cmd/desktop
-          go build -p 1 -buildvcs=false -tags "desktop,sqlite_fts5,production" -o _prebuild_tmp.exe . || true
-          rm -f _prebuild_tmp.exe
+          go mod download
+          # Clean build cache to avoid stale type info from different build tags
+          go clean -cache
 
       - name: Build desktop app
         shell: bash
