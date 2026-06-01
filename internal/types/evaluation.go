@@ -2,13 +2,31 @@ package types
 
 import (
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/yanyiwu/gojieba"
 )
 
-// Jieba is a global instance of Chinese text segmentation tool
-var Jieba *gojieba.Jieba = gojieba.NewJieba()
+// jiebaMu guards lazy initialization of the shared Jieba instance.
+// Initialization is deferred because gojieba's CGO ctor crashes on some
+// platforms (e.g. Windows CI) when invoked at package-init time before
+// dictionary files are located.
+var (
+	jiebaMu   sync.Mutex
+	jiebaInst *gojieba.Jieba
+)
+
+// Jieba returns the lazily-initialized Chinese text segmentation tool.
+// Callers MUST use the returned value (do NOT cache it in a package var).
+func Jieba() *gojieba.Jieba {
+	jiebaMu.Lock()
+	defer jiebaMu.Unlock()
+	if jiebaInst == nil {
+		jiebaInst = gojieba.NewJieba()
+	}
+	return jiebaInst
+}
 
 // EvaluationStatue represents the status of an evaluation task
 type EvaluationStatue int

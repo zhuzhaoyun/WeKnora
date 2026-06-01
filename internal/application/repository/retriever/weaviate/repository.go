@@ -1045,7 +1045,7 @@ func tokenizeQuery(query string) []string {
 	}
 
 	// Use jieba for segmentation (search mode for better recall)
-	words := types.Jieba.CutForSearch(query, true)
+	words := types.Jieba().CutForSearch(query, true)
 
 	// Filter and deduplicate
 	seen := make(map[string]bool)
