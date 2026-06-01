@@ -201,15 +201,21 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Upgrade neo4j driver (workaround for Go 1.26 Windows bug)
+      - name: Downgrade to Go 1.25 (Windows only — Go 1.26.3 has a compiler bug)
+        if: runner.os == 'Windows'
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.0'
+          cache: false
+
+      - name: Patch go.mod for Go 1.25 (Windows only)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          # Go 1.26.3 on Windows has a compiler bug with neo4j-go-driver v6.0.0:
+          # Go 1.26.3 on Windows has a compiler bug:
           # "internal error: package without types was imported"
-          # Upgrade to v6.1.0 which may have changes that avoid the bug.
-          go get github.com/neo4j/neo4j-go-driver/v6@v6.1.0
-          go mod tidy
+          # Use Go 1.25 instead. Lower the go directive so Go 1.25 accepts it.
+          sed -i 's/^go 1\.26\.0/go 1.25.0/' go.mod
           go clean -cache
 
       - name: Build desktop app
