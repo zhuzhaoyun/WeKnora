@@ -190,6 +190,17 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install nsis -y
 
+      - name: Install SQLite development headers (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          # sqlite-vec-go-bindings requires sqlite3.h for CGO compilation
+          choco install sqlite -y --no-progress
+          # Find SQLite installation path and set CGO flags
+          SQLITE_PATH=$(find /c/ProgramData/chocolatey/lib/sqlite -name "sqlite3.h" -exec dirname {} \; | head -1)
+          echo "CGO_CFLAGS=-I${SQLITE_PATH}" >> "$GITHUB_ENV"
+          echo "CGO_LDFLAGS=-L${SQLITE_PATH} -lsqlite3" >> "$GITHUB_ENV"
+
       - name: Resolve version
         id: ver
         shell: bash
