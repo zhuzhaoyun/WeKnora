@@ -22,7 +22,6 @@ import (
 	"github.com/elastic/go-elasticsearch/v8"
 	_ "github.com/go-sql-driver/mysql" // 给 Doris (database/sql) 注册 MySQL 协议驱动
 	"github.com/milvus-io/milvus/client/v2/milvusclient"
-	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 	"github.com/panjf2000/ants/v2"
 	"github.com/qdrant/go-client/qdrant"
 	"github.com/redis/go-redis/v9"
@@ -34,12 +33,10 @@ import (
 
 	"github.com/Tencent/WeKnora/internal/agent/approval"
 	"github.com/Tencent/WeKnora/internal/application/repository"
-	memoryRepo "github.com/Tencent/WeKnora/internal/application/repository/memory/neo4j"
 	dorisRepo "github.com/Tencent/WeKnora/internal/application/repository/retriever/doris"
 	elasticsearchRepoV7 "github.com/Tencent/WeKnora/internal/application/repository/retriever/elasticsearch/v7"
 	elasticsearchRepoV8 "github.com/Tencent/WeKnora/internal/application/repository/retriever/elasticsearch/v8"
 	milvusRepo "github.com/Tencent/WeKnora/internal/application/repository/retriever/milvus"
-	neo4jRepo "github.com/Tencent/WeKnora/internal/application/repository/retriever/neo4j"
 	openSearchRepo "github.com/Tencent/WeKnora/internal/application/repository/retriever/opensearch"
 	postgresRepo "github.com/Tencent/WeKnora/internal/application/repository/retriever/postgres"
 	qdrantRepo "github.com/Tencent/WeKnora/internal/application/repository/retriever/qdrant"
@@ -127,7 +124,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(initDocReaderClient))
 	must(container.Provide(docparser.NewImageResolver))
 	must(container.Provide(initOllamaService))
-	must(container.Provide(initNeo4jClient))
+	registerNeo4jProviders(container)
 	must(container.Provide(stream.NewStreamManager))
 	logger.Debugf(ctx, "[Container] Initializing DuckDB...")
 	must(container.Provide(NewDuckDB))
@@ -150,8 +147,6 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewUserRepository))
 	must(container.Provide(repository.NewAuthTokenRepository))
 	must(container.Provide(repository.NewSystemSettingRepository))
-	must(container.Provide(neo4jRepo.NewNeo4jRepository))
-	must(container.Provide(memoryRepo.NewMemoryRepository))
 	must(container.Provide(repository.NewMCPServiceRepository))
 	must(container.Provide(repository.NewMCPToolApprovalRepository))
 	must(container.Provide(repository.NewCustomAgentRepository))
@@ -1222,47 +1217,6 @@ func initDocReaderClient(cfg *config.Config) (interfaces.DocumentReader, error) 
 func initOllamaService() (*ollama.OllamaService, error) {
 	// Get Ollama service from existing factory function
 	return ollama.GetOllamaService()
-}
-
-func initNeo4jClient() (neo4j.Driver, error) {
-	ctx := context.Background()
-	if strings.ToLower(os.Getenv("NEO4J_ENABLE")) != "true" {
-		logger.Debugf(ctx, "NOT SUPPORT RETRIEVE GRAPH")
-		return nil, nil
-	}
-	uri := os.Getenv("NEO4J_URI")
-	username := os.Getenv("NEO4J_USERNAME")
-	password := os.Getenv("NEO4J_PASSWORD")
-
-	// Retry configuration
-	maxRetries := 30                 // Max retry attempts
-	retryInterval := 2 * time.Second // Wait between retries
-
-	var driver neo4j.Driver
-	var err error
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		driver, err = neo4j.NewDriver(uri, neo4j.BasicAuth(username, password, ""))
-		if err != nil {
-			logger.Warnf(ctx, "Failed to create Neo4j driver (attempt %d/%d): %v", attempt, maxRetries, err)
-			time.Sleep(retryInterval)
-			continue
-		}
-
-		err = driver.VerifyAuthentication(ctx, nil)
-		if err == nil {
-			if attempt > 1 {
-				logger.Infof(ctx, "Successfully connected to Neo4j after %d attempts", attempt)
-			}
-			return driver, nil
-		}
-
-		logger.Warnf(ctx, "Failed to verify Neo4j authentication (attempt %d/%d): %v", attempt, maxRetries, err)
-		driver.Close(ctx)
-		time.Sleep(retryInterval)
-	}
-
-	return nil, fmt.Errorf("failed to connect to Neo4j after %d attempts: %w", maxRetries, err)
 }
 
 func NewDuckDB() (*sql.DB, error) {

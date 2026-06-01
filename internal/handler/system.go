@@ -25,13 +25,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
 
 // SystemHandler handles system-related requests
 type SystemHandler struct {
 	cfg              *config.Config
-	neo4jDriver      neo4j.Driver
+	graphEngine      string
 	documentReader   interfaces.DocumentReader
 	tenantSvc        interfaces.TenantService
 	userSvc          interfaces.UserService
@@ -44,7 +43,7 @@ type SystemHandler struct {
 
 // NewSystemHandler creates a new system handler
 func NewSystemHandler(cfg *config.Config,
-	neo4jDriver neo4j.Driver,
+	graphEngine string,
 	documentReader interfaces.DocumentReader,
 	tenantSvc interfaces.TenantService,
 	userSvc interfaces.UserService,
@@ -53,7 +52,7 @@ func NewSystemHandler(cfg *config.Config,
 ) *SystemHandler {
 	return &SystemHandler{
 		cfg:              cfg,
-		neo4jDriver:      neo4jDriver,
+		graphEngine:      graphEngine,
 		documentReader:   documentReader,
 		tenantSvc:        tenantSvc,
 		userSvc:          userSvc,
@@ -417,10 +416,10 @@ func (h *SystemHandler) getVectorStoreEngine() string {
 
 // getGraphDatabaseEngine returns the graph database engine name
 func (h *SystemHandler) getGraphDatabaseEngine() string {
-	if h.neo4jDriver == nil {
+	if h.graphEngine == "" {
 		return "Not Enabled"
 	}
-	return "Neo4j"
+	return h.graphEngine
 }
 
 // supportsRetrieverType checks if a driver supports a specific retriever type
