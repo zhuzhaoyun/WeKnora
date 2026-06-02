@@ -224,11 +224,19 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          HEADER_DIR="${GITHUB_WORKSPACE}/_sqlite_headers"
-          mkdir -p "${HEADER_DIR}"
-          curl -sL "https://raw.githubusercontent.com/mattn/go-sqlite3/v1.14.22/sqlite3-binding.h" -o "${HEADER_DIR}/sqlite3.h"
-          curl -sL "https://raw.githubusercontent.com/mattn/go-sqlite3/v1.14.22/sqlite3ext.h" -o "${HEADER_DIR}/sqlite3ext.h"
-          echo "SQLITE_HEADER_DIR=${HEADER_DIR}" >> $GITHUB_ENV
+          # sqlite-vec-go-bindings/cgo requires sqlite3.h for CGO compilation.
+          # Download official SQLite amalgamation and place headers directly
+          # in the package directory so #include "sqlite3.h" resolves naturally.
+          SQLITE_VEC_CGO="$(go env GOMODCACHE)/github.com/asg017/sqlite-vec-go-bindings@v0.1.6/cgo"
+          # Ensure module is downloaded and directory is writable
+          go mod download github.com/asg017/sqlite-vec-go-bindings@v0.1.6
+          chmod -R u+w "${SQLITE_VEC_CGO}" 2>/dev/null || true
+          curl -fSL -o /tmp/sqlite-amalgamation.zip "https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip"
+          unzip -o /tmp/sqlite-amalgamation.zip -d /tmp/sqlite-amal
+          cp /tmp/sqlite-amal/sqlite-amalgamation-3460100/sqlite3.h "${SQLITE_VEC_CGO}/sqlite3.h"
+          cp /tmp/sqlite-amal/sqlite-amalgamation-3460100/sqlite3ext.h "${SQLITE_VEC_CGO}/sqlite3ext.h"
+          echo "SQLite headers installed to: ${SQLITE_VEC_CGO}"
+          ls -la "${SQLITE_VEC_CGO}/sqlite3.h" "${SQLITE_VEC_CGO}/sqlite3ext.h"
 
       - name: Resolve version
         id: ver
@@ -248,7 +256,7 @@ jobs:
           export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
           eval "$(./scripts/get_version.sh env)"
           LDFLAGS="$(./scripts/get_version.sh ldflags) -X 'google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'"
-          export CGO_CFLAGS="-Wno-deprecated-declarations ${SQLITE_HEADER_DIR:+-I${SQLITE_HEADER_DIR}}"
+          export CGO_CFLAGS="-Wno-deprecated-declarations"
 
           BUILD_TAGS="sqlite_fts5"
           NSIS_FLAG=""
