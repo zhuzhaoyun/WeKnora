@@ -190,6 +190,24 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install nsis -y
 
+      - name: Prepare SQLite headers (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          # sqlite-vec-go-bindings/cgo requires sqlite3.h for CGO compilation.
+          # Download official SQLite amalgamation and place headers directly
+          # in the package directory so #include "sqlite3.h" resolves naturally.
+          SQLITE_VEC_CGO="$(go env GOMODCACHE)/github.com/asg017/sqlite-vec-go-bindings@v0.1.6/cgo"
+          # Ensure module is downloaded and directory is writable
+          go mod download github.com/asg017/sqlite-vec-go-bindings@v0.1.6
+          chmod -R u+w "${SQLITE_VEC_CGO}" 2>/dev/null || true
+          curl -fSL -o /tmp/sqlite-amalgamation.zip "https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip"
+          unzip -o /tmp/sqlite-amalgamation.zip -d /tmp/sqlite-amal
+          cp /tmp/sqlite-amal/sqlite-amalgamation-3460100/sqlite3.h "${SQLITE_VEC_CGO}/sqlite3.h"
+          cp /tmp/sqlite-amal/sqlite-amalgamation-3460100/sqlite3ext.h "${SQLITE_VEC_CGO}/sqlite3ext.h"
+          echo "SQLite headers installed to: ${SQLITE_VEC_CGO}"
+          ls -la "${SQLITE_VEC_CGO}/sqlite3.h" "${SQLITE_VEC_CGO}/sqlite3ext.h"
+
       - name: Resolve version
         id: ver
         shell: bash
